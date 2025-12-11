@@ -1,0 +1,10 @@
+export { TaskSummaryBlock } from "./TaskSummaryBlock";
+export { TaskInsightsBar } from "./TaskInsightsBar";
+export { TaskCategoryPanel, TASK_CATEGORIES, categorizeTask, type TaskCategory } from "./TaskCategoryPanel";
+export { TaskCard, type Task } from "./TaskCard";
+export { TaskQuickActionsBar } from "./TaskQuickActionsBar";
+export { TaskSuggestionCarousel } from "./TaskSuggestionCarousel";
+export { CompletedTasksSection } from "./CompletedTasksSection";
+export { TasksEmptyState } from "./TasksEmptyState";
+export { AddTaskDialog } from "./AddTaskDialog";
+export { TasksSectionV2 } from "./TasksSectionV2";
