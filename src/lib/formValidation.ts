@@ -122,6 +122,12 @@ export const guestCountSchema = z
   .max(10000, 'Guest count must be less than 10,000')
   .optional();
 
+// OTP validation (6-digit numeric code)
+export const otpSchema = z
+  .string()
+  .length(6, 'OTP must be exactly 6 digits')
+  .regex(/^\d{6}$/, 'OTP must contain only numbers');
+
 /**
  * Complete form validation schemas
  */

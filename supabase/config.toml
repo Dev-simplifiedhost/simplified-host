@@ -1,4 +1,4 @@
-project_id = "htwlfxuxlercjrlisdmq"
+project_id = "wjtlanchftacbtqcgpyr"
 
 [api]
 enabled = true
@@ -21,7 +21,7 @@ max_client_conn = 100
 
 [realtime]
 enabled = true
-ip_version = "ipv4"
+ip_version = "IPv4"
 
 [functions.generate-with-ai]
 verify_jwt = false
