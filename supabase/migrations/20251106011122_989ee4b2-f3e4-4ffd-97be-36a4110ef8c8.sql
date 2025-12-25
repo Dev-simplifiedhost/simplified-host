@@ -1,3 +1,8 @@
+-- Ensure rsvps has required columns before functions reference them
+ALTER TABLE public.rsvps
+  ADD COLUMN IF NOT EXISTS guest_phone TEXT,
+  ADD COLUMN IF NOT EXISTS country_code TEXT DEFAULT 'US';
+
 -- Create secure functions for guest RSVP operations
 
 -- Function to allow guests to retrieve their own RSVP using their guest token

@@ -19,6 +19,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { signUpSchema, signInSchema, otpSchema } from "@/lib/formValidation";
 import { sanitizeEmail } from "@/lib/sanitization";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { getBaseUrl } from "@/lib/utils";
 
 const emailSchema = z.string().email("Invalid email address").max(255);
 const passwordSchema = z.string().min(8, "Password must be at least 8 characters").max(72);
@@ -222,7 +223,7 @@ const Auth = () => {
         email: email.trim(),
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/home`,
+          emailRedirectTo: `${getBaseUrl()}/home`,
         },
       });
 
@@ -429,7 +430,7 @@ const Auth = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
+          redirectTo: `${getBaseUrl()}/dashboard`,
         },
       });
 
@@ -696,6 +697,7 @@ const Auth = () => {
         email: email.trim(),
         options: {
           shouldCreateUser: false,
+          emailRedirectTo: `${getBaseUrl()}/auth?type=reset`,
           // Note: If Supabase is configured to send magic links, this will send a link instead of OTP
           // To get OTP codes, configure Supabase Auth settings in the dashboard
         },
