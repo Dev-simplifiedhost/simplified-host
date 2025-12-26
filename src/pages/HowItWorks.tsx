@@ -310,7 +310,7 @@ export default function HowItWorks() {
             <motion.div className="grid md:grid-cols-2 gap-10 md:gap-14 items-start" {...fadeInUp}>
               <div className="order-2 md:order-1">
                 {/* Section Badge */}
-                <div className="flex items-center gap-2 mb-6">
+                <div className="flex items-center justify-center gap-2 mb-6">
                   <span className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary text-primary-foreground font-heading font-bold text-sm">
                     01
                   </span>
@@ -318,7 +318,7 @@ export default function HowItWorks() {
                 </div>
                 
                 {/* Heading */}
-                <h2 id="plan-heading" className="text-[28px] md:text-[32px] font-heading font-semibold text-foreground mb-6 tracking-tight">
+                <h2 id="plan-heading" className="text-[28px] md:text-[32px] font-heading font-semibold text-foreground mb-6 tracking-tight text-center md:text-left">
                   Plan with AI
                 </h2>
                 
@@ -377,7 +377,7 @@ export default function HowItWorks() {
               
               <div className="order-2">
                 {/* Section Badge */}
-                <div className="flex items-center gap-2 mb-6">
+                <div className="flex items-center justify-center gap-2 mb-6">
                   <span className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary text-primary-foreground font-heading font-bold text-sm">
                     02
                   </span>
@@ -385,7 +385,7 @@ export default function HowItWorks() {
                 </div>
                 
                 {/* Heading */}
-                <h2 id="organize-heading" className="text-[28px] md:text-[32px] font-heading font-semibold text-foreground mb-6 tracking-tight">
+                <h2 id="organize-heading" className="text-[28px] md:text-[32px] font-heading font-semibold text-foreground mb-6 tracking-tight text-center md:text-left">
                   Review & Organize
                 </h2>
                 
@@ -432,7 +432,7 @@ export default function HowItWorks() {
             <motion.div className="grid md:grid-cols-2 gap-10 md:gap-14 items-start" {...fadeInUp}>
               <div className="order-2 md:order-1">
                 {/* Section Badge */}
-                <div className="flex items-center gap-2 mb-6">
+                <div className="flex items-center justify-center gap-2 mb-6">
                   <span className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary text-primary-foreground font-heading font-bold text-sm">
                     03
                   </span>
@@ -440,7 +440,7 @@ export default function HowItWorks() {
                 </div>
                 
                 {/* Heading */}
-                <h2 id="share-heading" className="text-[28px] md:text-[32px] font-heading font-semibold text-foreground mb-6 tracking-tight">
+                <h2 id="share-heading" className="text-[28px] md:text-[32px] font-heading font-semibold text-foreground mb-6 tracking-tight text-center md:text-left">
                   Share & Track
                 </h2>
                 
