@@ -48,6 +48,7 @@ const Auth = () => {
   const [otpType, setOtpType] = useState<'signup' | 'reset'>('signup');
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   // Countdown timer for login delay
   useEffect(() => {
@@ -107,6 +108,10 @@ const Auth = () => {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Skip auto-redirect if user is resetting password
+      if (isResettingPassword) {
+        return;
+      }
       if (session && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
         setTimeout(() => {
           handlePendingEventPlan(session.user.id);
@@ -115,7 +120,7 @@ const Auth = () => {
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, isResettingPassword]);
 
   const handlePendingEventPlan = async (userId: string) => {
     const pendingPlanStr = localStorage.getItem('pendingEventPlan');
@@ -443,28 +448,18 @@ const Auth = () => {
           }
         }
       } else {
-        // Password reset uses 'email' type (when using signInWithOtp)
-        // Try 'email' type first
+        // Password reset uses 'recovery' type (from resetPasswordForEmail)
+        // Set flag to prevent auto-redirect when verifyOtp creates a session
+        setIsResettingPassword(true);
+        
+        // Try 'recovery' type first (proper type for password reset)
         const result = await supabase.auth.verifyOtp({
           email: otpEmail,
           token: otpCode,
-          type: 'email',
+          type: 'recovery' as any,
         });
         data = result.data;
         error = result.error;
-        
-        // If 'email' type fails, try 'recovery' as fallback (for link-based resets)
-        if (error && (error.message.includes("invalid") || error.message.includes("expired"))) {
-          const fallbackResult = await supabase.auth.verifyOtp({
-            email: otpEmail,
-            token: otpCode,
-            type: 'recovery' as any, // Type assertion needed as TypeScript types may not include 'recovery'
-          });
-          if (!fallbackResult.error) {
-            data = fallbackResult.data;
-            error = null;
-          }
-        }
       }
 
       if (error) {
@@ -533,6 +528,7 @@ const Auth = () => {
           // Password reset flow - show password reset form
           setShowOtpVerification(false);
           setShowResetPassword(true);
+          setOtpCode("");
           toast({
             title: "Code verified!",
             description: "Please enter your new password",
@@ -572,13 +568,8 @@ const Auth = () => {
         });
         error = result.error;
       } else {
-        // Use signInWithOtp for password reset (sends OTP if configured)
-        const result = await supabase.auth.signInWithOtp({
-          email: otpEmail,
-          options: {
-            shouldCreateUser: false,
-          },
-        });
+        // Use resetPasswordForEmail for password reset
+        const result = await supabase.auth.resetPasswordForEmail(otpEmail);
         error = result.error;
       }
 
@@ -634,49 +625,29 @@ const Auth = () => {
 
     setLoading(true);
     try {
-      // Send OTP code for password reset using signInWithOtp
-      // IMPORTANT: Supabase must be configured to send OTP codes (not magic links)
-      // In Supabase Dashboard: Authentication > Providers > Email > 
-      // Make sure "Enable Email OTP" is enabled, or configure email templates to send OTP codes
-      
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: {
-          shouldCreateUser: false,
-          emailRedirectTo: `${getBaseUrl()}/auth?type=reset`,
-          // Note: If Supabase is configured to send magic links, this will send a link instead of OTP
-          // To get OTP codes, configure Supabase Auth settings in the dashboard
-        },
-      });
+      // Send OTP code for password reset using resetPasswordForEmail
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
 
       if (error) {
-        // Don't reveal if email exists - show success anyway for security
-        if (error.message.includes("not found") || error.message.includes("not registered")) {
-          toast({
-            title: "If that email exists",
-            description: "We've sent a password reset code to your email. Check your inbox for a 6-digit code.",
-          });
-        } else {
-          toast({
-            title: "Error",
-            description: error.message + ". Note: Ensure your Supabase project is configured to send OTP codes in Authentication settings.",
-            variant: "destructive",
-          });
-          setLoading(false);
-          return;
-        }
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
       }
 
       // Show OTP verification screen
-      toast({
-        title: "Code sent!",
-        description: "Please check your email for the 6-digit password reset code. If you received a link instead, click it to reset your password.",
-      });
       setShowForgotPassword(false);
       setShowOtpVerification(true);
       setOtpEmail(email.trim());
       setOtpType('reset');
       setResendOtpCooldown(60);
+      toast({
+        title: "Password reset code sent!",
+        description: `Check your email at ${email.trim()} for your 6-digit code. If you don't see it, check your spam folder.`,
+      });
     } catch (error) {
       toast({
         title: "Error",
@@ -742,11 +713,21 @@ const Auth = () => {
           title: "Password reset!",
           description: "Your password has been successfully reset. Please sign in.",
         });
+        // Sign out to clear the recovery session and allow proper signin with new password
+        await supabase.auth.signOut();
+        
+        // Clear the password reset flag
+        setIsResettingPassword(false);
+        
+        // Reset all form state
         setShowResetPassword(false);
         setNewPassword("");
         setConfirmPassword("");
-        setEmail(otpEmail);
-        // Switch to sign in tab
+        setEmail("");
+        setOtpEmail("");
+        setOtpCode("");
+        setOtpType('signup');
+        
         navigate("/auth");
       }
     } catch (error) {
@@ -927,13 +908,14 @@ const Auth = () => {
                     type="button"
                     onClick={() => {
                       setShowResetPassword(false);
+                      setShowOtpVerification(true);
                       setNewPassword("");
                       setConfirmPassword("");
                     }}
                     className="w-full text-sm text-muted-foreground hover:text-foreground flex items-center justify-center gap-1"
                   >
                     <ArrowLeft className="h-4 w-4" />
-                    Back to Sign In
+                    Back
                   </button>
                 </form>
               </CardContent>
