@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { HelpCircle, Smartphone } from "lucide-react";
+import { HelpCircle, Smartphone, BookOpen } from "lucide-react";
 import logo from "@/assets/logo.svg";
 
 export const Footer = () => {
@@ -65,6 +65,15 @@ export const Footer = () => {
           <div>
             <h3 className="font-semibold text-xs md:text-sm mb-2 md:mb-3">Get Started</h3>
             <ul className="space-y-1.5 text-xs md:text-sm">
+              <li>
+                <Link 
+                  to="/how-it-works" 
+                  className="text-muted-foreground text-center hover:text-foreground transition-colors flex items-center gap-1.5"
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                  How It Works
+                </Link>
+              </li>
               <li>
                 <Link 
                   to="/dashboard" 
