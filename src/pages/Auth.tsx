@@ -222,9 +222,6 @@ const Auth = () => {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
-        options: {
-          emailRedirectTo: `${getBaseUrl()}/home`,
-        },
       });
 
       if (error) {
@@ -287,37 +284,13 @@ const Auth = () => {
         setOtpEmail(email.trim());
         setOtpType('signup');
         
-        // Send OTP for email verification using resend
-        const { error: otpError } = await supabase.auth.resend({
-          type: 'signup',
-          email: email.trim(),
-        });
-
-        if (otpError) {
-          // Fallback: try signInWithOtp if resend fails
-          const { error: fallbackError } = await supabase.auth.signInWithOtp({
-            email: email.trim(),
-            options: {
-              shouldCreateUser: false,
-            },
-          });
-
-          if (fallbackError) {
-            toast({
-              title: "Error sending OTP",
-              description: fallbackError.message,
-              variant: "destructive",
-            });
-            return;
-          }
-        }
-        
+        // Note: signUp() automatically sends OTP email, so don't call resend() here
         // Show OTP verification screen
         setShowOtpVerification(true);
         setResendOtpCooldown(60);
         toast({
-          title: "OTP sent!",
-          description: "Please check your email for the verification code",
+          title: "Verification code sent!",
+          description: `Check your email at ${email.trim()} for your 6-digit verification code. If you don't see it, check your spam folder.`,
         });
       }
     } catch (error) {
@@ -424,33 +397,6 @@ const Auth = () => {
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${getBaseUrl()}/dashboard`,
-        },
-      });
-
-      if (error) {
-        toast({
-          title: "Google sign in failed",
-          description: error.message,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
