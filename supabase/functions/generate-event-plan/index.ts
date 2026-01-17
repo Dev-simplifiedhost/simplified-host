@@ -30,7 +30,7 @@ serve(async (req) => {
       );
     }
 
-    // Rate limit check - 1 per day for free users (enforced also on frontend)
+    // Rate limit check
     const rateLimitConfig = RATE_LIMITS.GENERATE_PLAN;
     const rateLimitResult = await checkRateLimit(
       supabase,
@@ -47,161 +47,77 @@ serve(async (req) => {
     const { eventType, eventDate, duration, guestRange, hostingStyle, vibes, notes, existingItems, existingTasks } = await req.json();
     console.log('Generating event plan for:', { eventType, eventDate, duration, guestRange, hostingStyle, vibes, notes });
     
-    // Determine if this is enhance mode
     const isEnhanceMode = (existingItems && existingItems.length > 0) || (existingTasks && existingTasks.length > 0);
-    console.log('Enhance mode:', isEnhanceMode, 'Existing items:', existingItems?.length || 0, 'Existing tasks:', existingTasks?.length || 0);
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    if (!GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is not configured');
     }
 
-    // Build the structured prompt
-    let systemPrompt = `You are an expert event planner. Generate a complete, structured event plan based on the user's inputs.
-
+    // Build the prompts
+    let systemPrompt = `You are an expert event planner. Generate a complete, structured event plan.
 CRITICAL RULES:
 - No long paragraphs. Use short, actionable bullet points.
-- Do not repeat the user's inputs back to them.
-- No filler language or conditional phrases like "you could consider..."
-- Be specific and actionable.
-- Keep each bullet point under 15 words.
-- No mixing items and tasks.
-- Scale quantities and complexity based on guest count.
+- Do not repeat user inputs.
+- Keep points under 15 words.
+- No mixing items and tasks.`;
 
-Guest count ranges:
-- 5-10: intimate gathering
-- 10-20: medium party
-- 20-40: larger event
-- 40-75: big event needing coordination
-- 75+: large-scale event
-
-Hosting styles:
-- potluck: Most items brought by guests, host provides venue/basics
-- host_provides: Host provides most food/drinks, minimal guest contributions
-- mixed: Combination of both
-
-Duration impacts:
-- 2-3 hrs: focused event, lighter refreshments
-- 4+ hrs: more substantial food, multiple phases`;
-
-    // Enhance mode: modify system prompt
     if (isEnhanceMode) {
-      systemPrompt += `
-
-ENHANCE MODE - CRITICAL INSTRUCTIONS:
-- You are ENHANCING an existing event, NOT creating a new plan from scratch.
-- The user already has items and tasks. Suggest ADDITIONAL complementary items only.
-- DO NOT duplicate any existing items or tasks.
-- Focus on filling gaps and adding variety to what already exists.
-- Suggest fewer items (3-6 per category max) since this is supplemental.
-- Keep the plan shorter and more focused.`;
+      systemPrompt += `\nENHANCE MODE: Suggest ADDITIONAL items only. Do not duplicate existing ones.`;
     }
 
-    let userPrompt = `Generate a complete event plan:
+    let userPrompt = `Event: ${eventType}, Guests: ${guestRange}, Duration: ${duration}, Style: ${hostingStyle}.`;
+    if (vibes?.length) userPrompt += ` Vibes: ${vibes.join(', ')}.`;
+    if (notes) userPrompt += ` Notes: ${notes}.`;
 
-Event Type: ${eventType}
-Guest Count Range: ${guestRange}
-Duration: ${duration}
-Hosting Style: ${hostingStyle}
-Vibes: ${vibes?.length > 0 ? vibes.join(', ') : 'not specified'}
-Event Date: ${eventDate || 'not specified'}
-${notes ? `Additional Notes: ${notes}` : ''}`;
+    // Using gemini-2.0-flash-lite from your available list (most cost-efficient and highest rate limits)
+    const geminiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent";
 
-    // Enhance mode: add existing items/tasks context
-    if (isEnhanceMode) {
-      const existingItemNames = existingItems?.map((i: { name: string }) => i.name).join(', ') || 'none';
-      const existingTaskTitles = existingTasks?.map((t: { title: string }) => t.title).join(', ') || 'none';
-      
-      userPrompt += `
-
-EXISTING ITEMS (DO NOT DUPLICATE): ${existingItemNames}
-EXISTING TASKS (DO NOT DUPLICATE): ${existingTaskTitles}
-
-Generate ADDITIONAL complementary items and tasks that fill gaps and add variety. Do not repeat anything that already exists.`;
-    } else {
-      userPrompt += `
-
-Create a practical, actionable plan with clear timeline, items list, host tasks, and tips.`;
-    }
-
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
+    const payload = {
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: userPrompt }]
+        }
+      ],
+      system_instruction: {
+        parts: [{ text: systemPrompt }]
       },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        tools: [
-          {
-            type: 'function',
-            function: {
+      tools: [
+        {
+          function_declarations: [
+            {
               name: 'generate_event_plan',
-              description: 'Generate a structured event plan with 5 sections',
+              description: 'Generate a structured event plan',
               parameters: {
                 type: 'object',
                 properties: {
-                  planName: { 
-                    type: 'string', 
-                    description: 'Creative event title (e.g., "Cozy Game Night Gathering")' 
-                  },
-                  planSummary: { 
-                    type: 'string', 
-                    description: 'One sentence describing the event feel (max 20 words)' 
-                  },
+                  planName: { type: 'string' },
+                  planSummary: { type: 'string' },
                   timeline: {
                     type: 'object',
-                    description: 'Grouped bullet lists for each time period',
                     properties: {
-                      threeDaysBefore: {
-                        type: 'array',
-                        items: { type: 'string' },
-                        description: '2-4 short action items for 3-5 days before'
-                      },
-                      oneDayBefore: {
-                        type: 'array',
-                        items: { type: 'string' },
-                        description: '2-4 short action items for 1 day before'
-                      },
-                      dayOf: {
-                        type: 'array',
-                        items: { type: 'string' },
-                        description: '2-4 short action items for day of event'
-                      },
-                      oneHourBefore: {
-                        type: 'array',
-                        items: { type: 'string' },
-                        description: '2-3 short action items for 1 hour before'
-                      },
-                      duringEvent: {
-                        type: 'array',
-                        items: { type: 'string' },
-                        description: '2-3 short action items during the event'
-                      }
+                      threeDaysBefore: { type: 'array', items: { type: 'string' } },
+                      oneDayBefore: { type: 'array', items: { type: 'string' } },
+                      dayOf: { type: 'array', items: { type: 'string' } },
+                      oneHourBefore: { type: 'array', items: { type: 'string' } },
+                      duringEvent: { type: 'array', items: { type: 'string' } }
                     },
                     required: ['threeDaysBefore', 'oneDayBefore', 'dayOf', 'oneHourBefore', 'duringEvent']
                   },
                   menuItems: {
                     type: 'array',
-                    description: 'Categorized list of items needed',
                     items: {
                       type: 'object',
                       properties: {
-                        category: { 
-                          type: 'string',
-                          description: 'Category name: Starters / Snacks, Main Dishes, Sides, Drinks, or Décor & Essentials'
-                        },
+                        category: { type: 'string' },
                         items: {
                           type: 'array',
                           items: {
                             type: 'object',
                             properties: {
-                              name: { type: 'string', description: 'Item name' },
-                              note: { type: 'string', description: 'Optional short note (e.g., "with crackers")' }
+                              name: { type: 'string' },
+                              note: { type: 'string' }
                             },
                             required: ['name']
                           }
@@ -210,46 +126,45 @@ Create a practical, actionable plan with clear timeline, items list, host tasks,
                       required: ['category', 'items']
                     }
                   },
-                  hostTodos: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: '5-8 short, actionable host tasks'
-                  },
-                  setupTips: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: '4-6 practical tips for layout, décor, guest flow, and ambiance'
-                  }
+                  hostTodos: { type: 'array', items: { type: 'string' } },
+                  setupTips: { type: 'array', items: { type: 'string' } }
                 },
                 required: ['planName', 'planSummary', 'timeline', 'menuItems', 'hostTodos', 'setupTips']
               }
             }
-          }
-        ],
-        tool_choice: { type: 'function', function: { name: 'generate_event_plan' } }
-      }),
+          ]
+        }
+      ],
+      tool_config: {
+        function_calling_config: {
+          mode: "ANY",
+          allowed_function_names: ["generate_event_plan"]
+        }
+      }
+    };
+
+    const response = await fetch(`${geminiUrl}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI Gateway error:', response.status, errorText);
-      throw new Error(`AI Gateway error: ${response.status}`);
+      console.error('Gemini error:', response.status, errorText);
+      throw new Error(`Gemini error: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('AI Response received');
-
-    const toolCall = data.choices[0]?.message?.tool_calls?.[0];
-    if (!toolCall) {
-      throw new Error('No tool call in response');
+    const part = data.candidates?.[0]?.content?.parts?.find((p: any) => p.functionCall);
+    
+    if (!part?.functionCall) {
+      throw new Error('No function call in response');
     }
 
-    const eventPlan = JSON.parse(toolCall.function.arguments);
-    console.log('Parsed event plan:', JSON.stringify(eventPlan, null, 2));
-    
     return new Response(JSON.stringify({ 
       success: true,
-      eventPlan 
+      eventPlan: part.functionCall.args 
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
